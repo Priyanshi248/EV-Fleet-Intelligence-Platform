@@ -1,0 +1,22 @@
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: ev-fleet-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ev_fleet
+      POSTGRES_USER: ev_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ev_admin -d ev_fleet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
