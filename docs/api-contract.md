@@ -1,108 +1,276 @@
 
 # EV Fleet Intelligence Platform — API Contract
 
-## Base Configuration
-- Local base URL: http://127.0.0.1:8000
-- API prefix: /api
+## 1. General conventions
+
+- Base URL: `http://127.0.0.1:8000`
+- API prefix: `/api`
 - Format: JSON
-- Units: km, kWh, kW, INR, kg CO2e
-- Missing optional values: null
+- IDs: integer primary keys
+- Timestamps: ISO 8601 with timezone
+- Distance: km
+- Energy: kWh
+- Power: kW
+- Battery voltage: V
+- Battery current: A
+- Battery temperature: °C
+- Battery SOH: percent, 0–100
+- RUL: remaining useful life in cycles
+- Purchase price: INR
+- Payload: kg
+- Emissions: kg CO2e
+- Optional fields: `null` when unavailable
+- Lists: JSON arrays
+- Errors: JSON with `detail` describing the error
 
-## 1. Health
-GET /health
+## 2. Health
+
+### GET /health
 
 Response:
-- status: string
+- `status`: string
 
-## 2. Fleet
-GET /api/fleet/vehicles
-
-Response:
-- id: integer
-- make: string
-- model: string
-- battery_capacity_kwh: number
-- range_km: number
-- status: string
+Success example:
+```json
+{
+  "status": "ok"
+}
+```
 
 ## 3. Dashboard
-GET /api/dashboard/summary
+
+### GET /api/dashboard/summary
 
 Response:
-- total_vehicles: integer
-- active_vehicles: integer
-- maintenance_alerts: integer
-- average_battery_soh_percent: number or null
+- `total_vehicles`: integer
+- `active_vehicles`: integer
+- `charging_vehicles`: integer
+- `maintenance_alerts`: integer
+- `average_battery_soh_percent`: number or null
 
-## 4. Telemetry
-GET /api/telemetry/{vehicle_id}
+## 4. Fleet
+
+### GET /api/fleet/vehicles
+
+Returns registered fleet vehicles.
+
+Response: array of:
+- `id`: integer
+- `make`: string
+- `model`: string
+- `battery_capacity_kwh`: number or null
+- `range_km`: number or null
+- `status`: string
+- `created_at`: datetime
+
+### GET /api/fleet/vehicles/{vehicle_id}
+
+Returns one vehicle by ID.
+
+Response: one vehicle object with the fields listed above.
+
+## 5. Telemetry
+
+### GET /api/telemetry/{vehicle_id}
+
+Returns telemetry records for a vehicle.
+
+Response: array of:
+- `id`: integer
+- `vehicle_id`: integer
+- `recorded_at`: datetime
+- `battery_voltage_v`: number or null
+- `battery_temperature_c`: number or null
+- `battery_current_a`: number or null
+- `state_of_charge_percent`: number or null
+
+Query parameters:
+- `limit`: integer, default 50, maximum 200
+- `offset`: integer, default 0
+
+The `vehicle_id` must reference an existing vehicle.
+
+## 6. Charging
+
+### GET /api/charging/sessions
+
+Returns charging sessions.
+
+Response: array of:
+- `id`: integer
+- `vehicle_id`: integer
+- `started_at`: datetime
+- `ended_at`: datetime or null
+- `energy_charged_kwh`: number
+- `duration_minutes`: number
+
+Query parameters:
+- `vehicle_id`: integer, optional
+- `limit`: integer, default 50, maximum 200
+- `offset`: integer, default 0
+
+## 7. Battery
+
+### GET /api/battery/{vehicle_id}
+
+Returns the latest battery prediction for a vehicle.
 
 Response:
-- vehicle_id: integer
-- recorded_at: datetime
-- battery_voltage_v: number or null
-- battery_temperature_c: number or null
+- `vehicle_id`: integer
+- `soh_percent`: number or null
+- `rul_cycles`: integer or null
+- `prediction_status`: string
+- `model_version`: string or null
+- `predicted_at`: datetime
 
-## 5. Charging
-GET /api/charging/sessions
+If no prediction exists, return HTTP 404 or a documented empty result.
 
-Response:
-- session_id: integer
-- vehicle_id: integer
-- energy_charged_kwh: number
-- duration_minutes: number
+## 8. Maintenance
 
-## 6. Battery
-GET /api/battery/{vehicle_id}
+### GET /api/maintenance/alerts
 
-Response:
-- vehicle_id: integer
-- soh_percent: number or null
-- rul_cycles: integer or null
-- prediction_status: string
+Returns maintenance alerts.
 
-## 7. Maintenance
-GET /api/maintenance/alerts
+Response: array of:
+- `id`: integer
+- `vehicle_id`: integer
+- `alert_type`: string
+- `severity`: string
+- `description`: string
+- `status`: string
+- `created_at`: datetime
+- `resolved_at`: datetime or null
 
-Response:
-- alert_id: integer
-- vehicle_id: integer
-- severity: string
-- description: string
-- status: string
+Query parameters:
+- `vehicle_id`: integer, optional
+- `status`: string, optional
+- `severity`: string, optional
 
-## 8. Procurement
-GET /api/procurement/recommendations
+## 9. Procurement
 
-Response:
-- vehicle_id: integer
-- score: number
-- reasons: array of strings
+### GET /api/procurement/catalog
 
-## 9. Supply Chain
-GET /api/supply-chain/risks
+Returns available EV catalogue entries.
 
-Response:
-- supplier_id: integer
-- material: string
-- risk_level: string
-- risk_score: number
+Response: array of:
+- `id`: integer
+- `make`: string
+- `model`: string
+- `purchase_price_inr`: number
+- `usable_range_km`: number
+- `payload_kg`: number
+- `energy_consumption_kwh_per_km`: number
+- `charging_time_hours`: number
+- `data_source`: string
 
-## 10. Net-Zero
-GET /api/net-zero/scenarios
+### GET /api/procurement/recommendations
 
-Response:
-- scenario_id: integer
-- name: string
-- baseline_emissions_kg_co2e: number
-- projected_emissions_kg_co2e: number
-- reduction_percent: number
+Returns saved procurement recommendations.
 
-## 11. AI Assistant
-POST /api/assistant/chat
+Response: array of:
+- `id`: integer
+- `ev_id`: integer
+- `score`: number
+- `reasons`: array
+- `status`: string
+- `created_at`: datetime
+
+## 10. Supply chain
+
+### GET /api/supply-chain/suppliers
+
+Returns suppliers.
+
+Response: array of:
+- `id`: integer
+- `name`: string
+- `origin_country`: string
+- `data_source`: string
+- `created_at`: datetime
+
+### GET /api/supply-chain/materials
+
+Returns battery materials.
+
+Response: array of:
+- `id`: integer
+- `name`: string
+- `origin_country`: string or null
+- `price_indicator`: number or null
+- `price_volatility_indicator`: number or null
+- `sustainability_indicator`: number or null
+- `data_source`: string
+
+### GET /api/supply-chain/risks
+
+Returns supplier risk assessments.
+
+Response: array of:
+- `id`: integer
+- `supplier_id`: integer
+- `material_id`: integer
+- `risk_score`: number, 0–100
+- `risk_level`: string
+- `assessed_at`: datetime
+
+## 11. Net-zero
+
+### GET /api/net-zero/scenarios
+
+Returns emissions scenarios.
+
+Response: array of:
+- `id`: integer
+- `name`: string
+- `baseline_emissions_kg_co2e`: number
+- `projected_emissions_kg_co2e`: number
+- `reduction_percent`: number, 0–100
+- `assumptions`: object
+- `created_at`: datetime
+
+## 12. AI Assistant
+
+### POST /api/assistant/chat
 
 Request:
-- message: string
+- `message`: string, required and non-empty
 
 Response:
-- answer: string
+- `answer`: string
+
+Request example:
+```json
+{
+  "message": "Which vehicles need maintenance?"
+}
+```
+
+Response example:
+```json
+{
+  "answer": "The response will be generated by the assistant."
+}
+```
+
+## 13. Common error responses
+
+- `400 Bad Request`: invalid input
+- `404 Not Found`: requested vehicle or resource does not exist
+- `422 Unprocessable Entity`: request validation failed
+- `500 Internal Server Error`: unexpected server failure
+
+Error example:
+```json
+{
+  "detail": "Vehicle not found"
+}
+```
+
+## 14. Implementation status
+
+This document defines the agreed target contract.
+An endpoint is not considered implemented until it exists in FastAPI,
+has request/response schemas, and has been tested.
+
+The team must approve changes to field names, types and units before
+dependent frontend or module code is changed.
