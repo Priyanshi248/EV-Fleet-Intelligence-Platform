@@ -1,0 +1,6 @@
+material_id,name,dominant_countries,top_country_share_pct,market_price_usd_per_kg,price_volatility_score,carbon_intensity_kg_co2_per_kg,criticality_tier
+MAT-LI,Lithium Hydroxide,"Australia, Chile, China",79.0,18.5,82.0,15.2,Critical
+MAT-CO,Refined Cobalt,"DR Congo, China",74.0,32.0,88.0,24.5,Critical
+MAT-NI,Class 1 Nickel,"Indonesia, Philippines, Russia",62.0,16.8,65.0,18.0,High
+MAT-GR,Natural Spherical Graphite,"China, Mozambique",85.0,1.8,70.0,8.4,High
+MAT-FE,Iron Phosphate (LFP Precursor),"China, Morocco",88.0,4.2,35.0,4.1,Moderate

@@ -1,0 +1,7 @@
+vehicle_id,make,model,category,battery_capacity_kwh,usable_battery_kwh,battery_chemistry,nominal_range_km,max_payload_kg,cargo_volume_m3,charging_peak_kw_dc,charging_time_10_to_80_mins,energy_consumption_kwh_per_km,purchase_cost_usd,annual_maintenance_usd,warranty_years
+EV-001,Ford,E-Transit Cargo Van,Light Van,68.0,64.0,NMC,203.0,1616.0,11.3,115.0,34.0,0.33,53000.0,1200.0,8
+EV-002,Rivian,Commercial Van 700,Light Van,100.0,95.0,LFP,240.0,1250.0,18.7,150.0,45.0,0.41,83000.0,1100.0,8
+EV-003,BYD,T5 Urban Delivery,Medium Truck,106.0,100.0,LFP,200.0,3100.0,18.0,120.0,40.0,0.53,68000.0,1400.0,6
+EV-004,Mercedes-Benz,eSprinter Van,Light Van,81.0,76.0,LFP,250.0,1400.0,14.0,115.0,32.0,0.32,71000.0,1300.0,8
+EV-005,Volvo,FL Electric,Heavy Duty,280.0,265.0,NMC,300.0,8500.0,40.0,150.0,90.0,0.93,195000.0,3200.0,5
+EV-006,Scania,25P Urban Hauler,Heavy Duty,300.0,280.0,NMC,250.0,11000.0,52.0,130.0,100.0,1.2,230000.0,3800.0,5
