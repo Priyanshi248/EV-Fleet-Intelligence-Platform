@@ -218,3 +218,4 @@ For operational history, deactivation or soft deletion may be preferable.
 - Decide whether historical operational records should be retained
   rather than cascaded away.
 - Confirm whether all numeric measurements need explicit bounds.
+

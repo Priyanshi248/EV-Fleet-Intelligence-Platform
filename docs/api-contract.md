@@ -4,7 +4,8 @@
 ## 1. General conventions
 
 - Base URL: `http://127.0.0.1:8000`
-- API prefix: `/api`
+- API prefix: `/api/v1` for versioned application endpoints
+- Health endpoint: `/health`
 - Format: JSON
 - IDs: integer primary keys
 - Timestamps: ISO 8601 with timezone
@@ -29,28 +30,33 @@
 
 Response:
 - `status`: string
+- `message`: string
 
 Success example:
-```json
+
 {
-  "status": "ok"
+  "status": "ok",
+  "message": "Backend is running"
 }
-```
 
 ## 3. Dashboard
 
-### GET /api/dashboard/summary
+### GET /api/v1/dashboard/summary
+
+Returns summary metrics computed from the seeded database.
 
 Response:
 - `total_vehicles`: integer
-- `active_vehicles`: integer
-- `charging_vehicles`: integer
-- `maintenance_alerts`: integer
-- `average_battery_soh_percent`: number or null
+- `vehicle_status_counts`: object mapping vehicle status to count
+- `total_energy_charged_kwh`: number or null
+
+If no charging data is available, `total_energy_charged_kwh` is `null`.
 
 ## 4. Fleet
 
-### GET /api/fleet/vehicles
+Query parameters:
+- `status`: string, optional
+- `search`: string, optional
 
 Returns registered fleet vehicles.
 
@@ -63,7 +69,7 @@ Response: array of:
 - `status`: string
 - `created_at`: datetime
 
-### GET /api/fleet/vehicles/{vehicle_id}
+### GET /api/v1/fleet/vehicles/{vehicle_id}
 
 Returns one vehicle by ID.
 
@@ -71,8 +77,8 @@ Response: one vehicle object with the fields listed above.
 
 ## 5. Telemetry
 
-### GET /api/telemetry/{vehicle_id}
-
+### GET /api/v1/fleet/vehicles/{vehicle_id}/telemetry
+- `limit`: integer, default 100, minimum 1, maximum 500
 Returns telemetry records for a vehicle.
 
 Response: array of:
@@ -92,7 +98,8 @@ The `vehicle_id` must reference an existing vehicle.
 
 ## 6. Charging
 
-### GET /api/charging/sessions
+### GET /api/v1/fleet/vehicles/{vehicle_id}/charging-sessions
+- `limit`: integer, default 100, minimum 1, maximum 500
 
 Returns charging sessions.
 
@@ -268,9 +275,23 @@ Error example:
 
 ## 14. Implementation status
 
-This document defines the agreed target contract.
+Implemented and tested:
+
+- GET /health
+- GET /api/v1/fleet/vehicles
+- GET /api/v1/fleet/vehicles/{vehicle_id}
+- GET /api/v1/fleet/vehicles/{vehicle_id}/telemetry
+- GET /api/v1/fleet/vehicles/{vehicle_id}/charging-sessions
+- GET /api/v1/dashboard/summary
+
+Planned endpoints:
+
+- Battery
+- Maintenance
+- Procurement
+- Supply Chain
+- Net-Zero
+- AI Assistant
+
 An endpoint is not considered implemented until it exists in FastAPI,
 has request/response schemas, and has been tested.
-
-The team must approve changes to field names, types and units before
-dependent frontend or module code is changed.
