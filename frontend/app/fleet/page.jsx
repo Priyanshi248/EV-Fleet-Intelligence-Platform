@@ -1,4 +1,10 @@
 'use client';
+import {
+  getVehicles,
+  getVehicleTelemetry,
+  getChargingSessions,
+  getBatteryPredictions,
+} from '@/lib/api';
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -25,12 +31,52 @@ import {
   Download
 } from 'lucide-react';
 import VehicleGraphic from '@/components/VehicleGraphic';
-import { initialVehicles } from '@/data/mockData';
+
+
+const STATUS_MAP = {
+  active: 'In Operation',
+  charging: 'Charging',
+  maintenance: 'Maintenance',
+  offline: 'Offline',
+};
+
+function mapVehicle(vehicle, telemetry = []) {
+  const latestTelemetry = [...telemetry].sort(
+    (a, b) => new Date(b.recorded_at) - new Date(a.recorded_at)
+  )[0];
+
+  return {
+    databaseId: vehicle.id,
+    id: `EV-${String(vehicle.id).padStart(3, '0')}`,
+    make: vehicle.make,
+    model: `${vehicle.make} ${vehicle.model}`,
+    batteryCapacity: vehicle.battery_capacity_kwh,
+    rangeLeft: vehicle.range_km,
+    battery: latestTelemetry?.state_of_charge_percent ?? null,
+    temperature: latestTelemetry?.battery_temperature_c ?? null,
+    voltage: latestTelemetry?.battery_voltage_v ?? null,
+    current: latestTelemetry?.battery_current_a ?? null,
+    status: STATUS_MAP[vehicle.status] || vehicle.status,
+    createdAt: vehicle.created_at,
+    depot: null,
+    driver: null,
+    odometer: null,
+    soh: null,
+    rulCycles: null,
+    chargingSessions: [],
+  };
+}
 
 function FleetMonitoringContent() {
   const searchParams = useSearchParams();
-  const [vehicles, setVehicles] = useState(initialVehicles);
-  const [selectedVehicle, setSelectedVehicle] = useState(initialVehicles[0]);
+  const [vehicles, setVehicles] = useState([]);
+  const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const [fleetError, setFleetError] = useState(null);
+  const [selectedChargingSessions, setSelectedChargingSessions] = useState([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [selectedBatteryPredictions, setSelectedBatteryPredictions] = useState([]);
+  const [loadingBatteryPredictions, setLoadingBatteryPredictions] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [depotFilter, setDepotFilter] = useState('All');
@@ -44,6 +90,114 @@ function FleetMonitoringContent() {
       setSearchQuery(q);
     }
   }, [searchParams]);
+
+  // Fetch vehicles and their latest available telemetry.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFleet() {
+      try {
+        setLoadingVehicles(true);
+        setFleetError(null);
+        const records = await getVehicles();
+
+        const mappedVehicles = await Promise.all(
+          records.map(async (vehicle) => {
+            try {
+              const telemetry = await getVehicleTelemetry(vehicle.id);
+              return mapVehicle(vehicle, telemetry);
+            } catch (error) {
+              console.error(`Telemetry unavailable for vehicle ${vehicle.id}:`, error);
+              return mapVehicle(vehicle);
+            }
+          })
+        );
+
+        if (!cancelled) {
+          setVehicles(mappedVehicles);
+          setSelectedVehicle(mappedVehicles[0] || null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setFleetError(error.message || 'Unable to load fleet vehicles.');
+        }
+      } finally {
+        if (!cancelled) setLoadingVehicles(false);
+      }
+    }
+
+    loadFleet();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Fetch charging history for the selected vehicle.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadChargingSessions() {
+      if (!selectedVehicle?.databaseId) {
+        setSelectedChargingSessions([]);
+        return;
+      }
+
+      try {
+        setLoadingSessions(true);
+        const sessions = await getChargingSessions(selectedVehicle.databaseId);
+        if (!cancelled) setSelectedChargingSessions(sessions);
+      } catch (error) {
+        console.error('Unable to load charging sessions:', error);
+        if (!cancelled) setSelectedChargingSessions([]);
+      } finally {
+        if (!cancelled) setLoadingSessions(false);
+      }
+    }
+
+    loadChargingSessions();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedVehicle?.databaseId]);
+
+  useEffect(() => {
+  let cancelled = false;
+
+  async function loadBatteryPredictions() {
+    if (!selectedVehicle?.databaseId) {
+      setSelectedBatteryPredictions([]);
+      return;
+    }
+
+    try {
+      setLoadingBatteryPredictions(true);
+
+      const predictions = await getBatteryPredictions(
+        selectedVehicle.databaseId
+      );
+
+      if (!cancelled) {
+        setSelectedBatteryPredictions(predictions);
+      }
+    } catch (error) {
+      console.error('Unable to load battery predictions:', error);
+
+      if (!cancelled) {
+        setSelectedBatteryPredictions([]);
+      }
+    } finally {
+      if (!cancelled) {
+        setLoadingBatteryPredictions(false);
+      }
+    }
+  }
+
+  loadBatteryPredictions();
+
+  return () => {
+    cancelled = true;
+  };
+}, [selectedVehicle?.databaseId]);
 
   // New vehicle form state
   const [newVehicle, setNewVehicle] = useState({
@@ -77,40 +231,13 @@ function FleetMonitoringContent() {
 
   const handleAddVehicle = (e) => {
     e.preventDefault();
-    const created = {
-      ...newVehicle,
-      addedDate: '26 Oct 2026',
-      soh: 98,
-      rulYears: 4.5,
-      rulCycles: 2800,
-      temp: 29,
-      voltage: 380,
-      current: 12,
-      chargeCycles: 20,
-      degradationRate: 0.4,
-      type: newVehicle.model.includes('Ace') ? 'Cargo Mini Truck' : 'Commercial EV'
-    };
-    const updated = [created, ...vehicles];
-    setVehicles(updated);
-    setSelectedVehicle(created);
+    window.alert('Vehicle registration is not connected yet. The backend POST endpoint must be implemented first.');
     setIsAddModalOpen(false);
-    // Reset next ID
-    setNewVehicle({
-      id: `EV-${String(updated.length + 1).padStart(3, '0')}`,
-      model: 'Tata Ace EV',
-      battery: 95,
-      status: 'In Operation',
-      depot: 'Delhi',
-      rangeLeft: 220,
-      odometer: 1500,
-      consumption: 0.18,
-      driver: 'Ramesh Patel'
-    });
   };
 
   const handleExportCSV = () => {
-    const headers = "Vehicle ID,Model,Battery SOC,Status,Depot,Range Left (km),Odometer (km)\n";
-    const rows = filteredVehicles.map(v => `"${v.id}","${v.model}","${v.battery}%","${v.status}","${v.depot}","${v.rangeLeft}","${v.odometer}"`).join("\n");
+    const headers = "Vehicle ID,Model,Battery SOC,Status,Battery Capacity (kWh),Rated Range (km)\\n";
+    const rows = filteredVehicles.map(v => `"${v.id}","${v.model}","${v.battery ?? 'N/A'}","${v.status}","${v.batteryCapacity ?? 'N/A'}","${v.rangeLeft ?? 'N/A'}"`).join("\n");
     const blob = new Blob([headers + rows], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -229,7 +356,7 @@ function FleetMonitoringContent() {
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Search by vehicle ID, model, driver..."
+              placeholder="Search by vehicle ID or model..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-1.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
@@ -256,11 +383,7 @@ function FleetMonitoringContent() {
             className="px-3 py-1.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 text-slate-700"
           >
             <option value="All">All Depots</option>
-            <option value="Delhi">Delhi</option>
-            <option value="Mumbai">Mumbai</option>
-            <option value="Bengaluru">Bengaluru</option>
-            <option value="Chennai">Chennai</option>
-            <option value="Pune">Pune</option>
+
           </select>
         </div>
 
@@ -273,6 +396,12 @@ function FleetMonitoringContent() {
           <span>Add Vehicle</span>
         </button>
       </div>
+
+      {fleetError && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {fleetError}
+        </div>
+      )}
 
       {/* 4. Split Layout: Vehicle Table (Left) + Detail Card (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -319,26 +448,33 @@ function FleetMonitoringContent() {
                                   ? 'bg-amber-500' 
                                   : 'bg-rose-500'
                               }`}
-                              style={{ width: `${vehicle.battery}%` }}
+                              style={{ width: `${vehicle.battery ?? 0}%` }}
                             />
                           </div>
-                          <span className="text-xs font-semibold text-slate-700">{vehicle.battery}%</span>
+                          <span className="text-xs font-semibold text-slate-700">{vehicle.battery == null ? 'N/A' : `${vehicle.battery}%`}</span>
                         </div>
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         {getStatusBadge(vehicle.status)}
                       </td>
                       <td className="py-3 px-3 text-right text-xs text-slate-500 whitespace-nowrap">
-                        {vehicle.depot}
+                        {vehicle.depot || 'N/A'}
                       </td>
                     </tr>
                   );
                 })}
 
-                {filteredVehicles.length === 0 && (
+                {!loadingVehicles && filteredVehicles.length === 0 && (
                   <tr>
                     <td colSpan="5" className="py-8 text-center text-slate-400">
                       No vehicles found matching criteria.
+                    </td>
+                  </tr>
+                )}
+                {loadingVehicles && (
+                  <tr>
+                    <td colSpan="5" className="py-8 text-center text-slate-400">
+                      Loading fleet vehicles...
                     </td>
                   </tr>
                 )}
@@ -362,7 +498,7 @@ function FleetMonitoringContent() {
                   <span className="text-slate-400 font-medium">•</span>
                   <span className="text-sm font-semibold text-slate-700">{selectedVehicle.model}</span>
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">{selectedVehicle.type}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{selectedVehicle.batteryCapacity == null ? 'Vehicle details' : `${selectedVehicle.batteryCapacity} kWh battery`}</p>
               </div>
               <div>{getStatusBadge(selectedVehicle.status)}</div>
             </div>
@@ -394,28 +530,28 @@ function FleetMonitoringContent() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                     <span className="text-[11px] text-slate-500 block">Battery (SOC)</span>
-                    <span className="text-lg font-bold text-emerald-600">{selectedVehicle.battery}%</span>
+                    <span className="text-lg font-bold text-emerald-600">{selectedVehicle.battery == null ? 'N/A' : `${selectedVehicle.battery}%`}</span>
                     <div className="w-full bg-slate-200 rounded-full h-1.5 mt-1.5">
-                      <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${selectedVehicle.battery}%` }}></div>
+                      <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${selectedVehicle.battery ?? 0}%` }}></div>
                     </div>
                   </div>
 
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <span className="text-[11px] text-slate-500 block">Range Left</span>
-                    <span className="text-lg font-bold text-slate-900">{selectedVehicle.rangeLeft} km</span>
-                    <span className="text-[10px] text-slate-400 block mt-1">Est. 4.2 hrs drive</span>
+                    <span className="text-[11px] text-slate-500 block">Rated Range</span>
+                    <span className="text-lg font-bold text-slate-900">{selectedVehicle.rangeLeft == null ? 'N/A' : `${selectedVehicle.rangeLeft} km`}</span>
+                    <span className="text-[10px] text-slate-400 block mt-1">Rated vehicle range</span>
                   </div>
 
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                     <span className="text-[11px] text-slate-500 block">Odometer</span>
-                    <span className="text-lg font-bold text-slate-900">{selectedVehicle.odometer?.toLocaleString()} km</span>
-                    <span className="text-[10px] text-slate-400 block mt-1">Fleet active</span>
+                    <span className="text-lg font-bold text-slate-900">{selectedVehicle.odometer == null ? 'N/A' : `${selectedVehicle.odometer.toLocaleString()} km`}</span>
+                    <span className="text-[10px] text-slate-400 block mt-1">Not provided by API</span>
                   </div>
 
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                     <span className="text-[11px] text-slate-500 block">Status</span>
                     <span className="text-sm font-bold text-slate-900 block mt-1">{selectedVehicle.status}</span>
-                    <span className="text-[10px] text-emerald-600 font-medium">BMS Normal</span>
+                    <span className="text-[10px] text-slate-400 font-medium">BMS details unavailable</span>
                   </div>
                 </div>
 
@@ -423,19 +559,19 @@ function FleetMonitoringContent() {
                 <div className="divide-y divide-slate-100 text-xs">
                   <div className="py-2 flex justify-between">
                     <span className="text-slate-500">Depot Location</span>
-                    <span className="font-semibold text-slate-800">{selectedVehicle.depot}</span>
+                    <span className="font-semibold text-slate-800">{selectedVehicle.depot || 'Not available'}</span>
                   </div>
                   <div className="py-2 flex justify-between">
                     <span className="text-slate-500">Assigned Driver</span>
-                    <span className="font-semibold text-slate-800">{selectedVehicle.driver || 'Rajesh Kumar'}</span>
+                    <span className="font-semibold text-slate-800">{selectedVehicle.driver || 'Not available'}</span>
                   </div>
                   <div className="py-2 flex justify-between">
                     <span className="text-slate-500">Added to Fleet</span>
-                    <span className="font-semibold text-slate-800">{selectedVehicle.addedDate}</span>
+                    <span className="font-semibold text-slate-800">{selectedVehicle.createdAt ? new Date(selectedVehicle.createdAt).toLocaleDateString() : 'Not available'}</span>
                   </div>
                   <div className="py-2 flex justify-between">
                     <span className="text-slate-500">Energy Consumption</span>
-                    <span className="font-semibold text-emerald-600">{selectedVehicle.consumption} kWh/km</span>
+                    <span className="font-semibold text-emerald-600">Not available</span>
                   </div>
                 </div>
               </div>
@@ -444,54 +580,138 @@ function FleetMonitoringContent() {
             {/* Tab 2: Battery */}
             {activeTab === 'Battery' && (
               <div className="space-y-3 pt-1 text-xs">
+                {loadingBatteryPredictions && (
+                  <p className="text-slate-500">
+                    Loading battery predictions...
+                  </p>
+                )}
+
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-100">
-                    <span className="text-[10px] text-emerald-700 font-medium uppercase">State of Health (SOH)</span>
-                    <p className="text-lg font-bold text-emerald-900 mt-0.5">{selectedVehicle.soh || 88}%</p>
-                    <span className="text-[10px] text-emerald-600">Expected: &gt;80%</span>
+                    <span className="text-[10px] text-emerald-700 font-medium uppercase">
+                      State of Health (SOH)
+                    </span>
+                    <p className="text-lg font-bold text-emerald-900 mt-0.5">
+                      {loadingBatteryPredictions
+                        ? 'Loading...'
+                        : selectedBatteryPredictions[0]?.soh_percent != null
+                          ? `${selectedBatteryPredictions[0].soh_percent}%`
+                          : 'N/A'}
+                    </p>
+                    <span className="text-[10px] text-emerald-600">
+                      Expected: &gt;80%
+                    </span>
                   </div>
+
                   <div className="bg-blue-50/70 p-2.5 rounded-lg border border-blue-100">
-                    <span className="text-[10px] text-blue-700 font-medium uppercase">Remaining Life</span>
-                    <p className="text-lg font-bold text-blue-900 mt-0.5">{selectedVehicle.rulYears || 2.5} Years</p>
-                    <span className="text-[10px] text-blue-600">~{selectedVehicle.rulCycles || 1800} cycles</span>
+                    <span className="text-[10px] text-blue-700 font-medium uppercase">
+                      Remaining Useful Life
+                    </span>
+                    <p className="text-lg font-bold text-blue-900 mt-0.5">
+                      {loadingBatteryPredictions
+                        ? 'Loading...'
+                        : selectedBatteryPredictions[0]?.rul_cycles != null
+                          ? `${selectedBatteryPredictions[0].rul_cycles} cycles`
+                          : 'N/A'}
+                    </p>
+                    <span className="text-[10px] text-blue-600">
+                      Predicted remaining charge cycles
+                    </span>
                   </div>
+
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                    <span className="text-[10px] text-slate-500 font-medium uppercase">Pack Temp</span>
-                    <p className="text-base font-bold text-slate-800 mt-0.5">{selectedVehicle.temp || 32}°C</p>
+                    <span className="text-[10px] text-slate-500 font-medium uppercase">
+                      Pack Temp
+                    </span>
+                    <p className="text-base font-bold text-slate-800 mt-0.5">
+                      {selectedVehicle.temperature == null
+                        ? 'N/A'
+                        : `${selectedVehicle.temperature}°C`}
+                    </p>
                   </div>
+
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                    <span className="text-[10px] text-slate-500 font-medium uppercase">Charge Cycles</span>
-                    <p className="text-base font-bold text-slate-800 mt-0.5">{selectedVehicle.chargeCycles || 1240}</p>
+                    <span className="text-[10px] text-slate-500 font-medium uppercase">
+                      Charge Cycles
+                    </span>
+                    <p className="text-base font-bold text-slate-800 mt-0.5">
+                      N/A
+                    </p>
                   </div>
                 </div>
-                <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-xs">
-                  <p><strong>Cell Balancing Status:</strong> 100% Balanced (Delta &lt; 8mV between cell groups).</p>
+
+                <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-xs space-y-2">
+                  <p>
+                    <strong>Prediction Status:</strong>{' '}
+                    {loadingBatteryPredictions
+                      ? 'Loading...'
+                      : selectedBatteryPredictions[0]?.prediction_status ?? 'Not available'}
+                  </p>
+
+                  <p>
+                    <strong>Model Version:</strong>{' '}
+                    {selectedBatteryPredictions[0]?.model_version ?? 'Not available'}
+                  </p>
+
+                  <p>
+                    <strong>Predicted At:</strong>{' '}
+                    {selectedBatteryPredictions[0]?.predicted_at
+                      ? new Date(
+                          selectedBatteryPredictions[0].predicted_at
+                        ).toLocaleString()
+                      : 'Not available'}
+                  </p>
+
+                  <p>
+                    <strong>Cell Balancing Status:</strong> Not available from the current API.
+                  </p>
                 </div>
               </div>
             )}
+
 
             {/* Tab 3: Charging */}
             {activeTab === 'Charging' && (
               <div className="space-y-3 pt-1 text-xs">
                 <p className="text-xs font-semibold text-slate-700">Recent Charging History</p>
-                {selectedVehicle.chargingSessions?.length ? (
+                {loadingSessions ? (
+                  <div className="p-4 bg-slate-50 rounded-lg text-center text-slate-400">Loading charging history...</div>
+                ) : selectedChargingSessions.length ? (
                   <div className="space-y-2">
-                    {selectedVehicle.chargingSessions.map((session) => (
+                    {selectedChargingSessions.map((session) => (
                       <div key={session.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
                         <div className="flex justify-between items-center mb-1">
-                          <span className="font-semibold text-slate-800">{session.charger}</span>
-                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">+{session.energyAdded}</span>
+                          <span className="font-semibold text-slate-800">Charging session</span>
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">+{session.energy_charged_kwh} kWh</span>
                         </div>
-                        <div className="flex justify-between text-[11px] text-slate-500">
-                          <span>{session.date}</span>
-                          <span>{session.startSoc}% &rarr; {session.endSoc}% ({session.duration})</span>
+                        <div className="space-y-1 text-[11px] text-slate-500">
+                          <div className="flex justify-between gap-3">
+                            <span>Started</span>
+                            <span className="text-right">
+                              {session.started_at
+                                ? new Date(session.started_at).toLocaleString()
+                                : 'Not available'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <span>Ended</span>
+                            <span className="text-right">
+                              {session.ended_at
+                                ? new Date(session.ended_at).toLocaleString()
+                                : 'In progress / not recorded'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <span>Duration</span>
+                            <span>{session.duration_minutes ?? 'N/A'} minutes</span>
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="p-4 bg-slate-50 rounded-lg text-center text-slate-400">
-                    Last charged overnight via Depot Fast DC (22 kWh added).
+                    No charging sessions are available for this vehicle.
                   </div>
                 )}
               </div>
@@ -503,16 +723,16 @@ function FleetMonitoringContent() {
                 <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="flex items-center gap-2 mb-2">
                     <MapPin className="w-4 h-4 text-rose-500" />
-                    <span className="font-semibold text-slate-800">Assigned Depot: {selectedVehicle.depot} Central Hub</span>
+                    <span className="font-semibold text-slate-800">Assigned Depot: {selectedVehicle.depot || 'Not available'}</span>
                   </div>
                   <p className="text-slate-500 text-[11px] leading-relaxed">
-                    Sector 62, Logistics Zone, Near NH-24, {selectedVehicle.depot}. GPS coordinates: 28.6139° N, 77.2090° E.
+                    Location and GPS coordinates are not currently provided by the backend.
                   </p>
                 </div>
                 <div className="p-3 bg-emerald-50/60 rounded-lg border border-emerald-100 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] text-emerald-700 font-bold uppercase block">Geofence Status</span>
-                    <span className="text-xs font-semibold text-emerald-900">Inside Designated Operational Zone</span>
+                    <span className="text-xs font-semibold text-emerald-900">Geofence data unavailable</span>
                   </div>
                   <Shield className="w-5 h-5 text-emerald-600" />
                 </div>

@@ -125,7 +125,10 @@ Success example:
 
 If no charging data is available, `total_energy_charged_kwh` is `null`.
 
+
 ## 4. Fleet
+
+### GET /api/v1/fleet/vehicles
 
 Query parameters:
 - `status`: string, optional
@@ -147,6 +150,25 @@ Response: array of:
 Returns one vehicle by ID.
 
 Response: one vehicle object with the fields listed above.
+
+### GET /api/v1/fleet/vehicles/{vehicle_id}/battery-predictions
+
+Returns battery prediction records for a specific vehicle, ordered by prediction timestamp (newest first).
+
+Query parameters:
+- `limit`: integer, default 100, minimum 1, maximum 500
+
+Response: array of:
+- `id`: integer
+- `vehicle_id`: integer
+- `soh_percent`: number or null
+- `rul_cycles`: integer or null
+- `prediction_status`: string
+- `model_version`: string or null
+- `predicted_at`: datetime
+
+Returns HTTP 404 if the requested vehicle does not exist.
+
 
 ## 5. Telemetry
 
@@ -189,13 +211,18 @@ Query parameters:
 - `limit`: integer, default 50, maximum 200
 - `offset`: integer, default 0
 
-## 7. Battery
 
-### GET /api/battery/{vehicle_id}
+## 7. Battery Predictions
 
-Returns the latest battery prediction for a vehicle.
+### GET /api/v1/fleet/vehicles/{vehicle_id}/battery-predictions
 
-Response:
+Returns battery prediction records for the specified vehicle.
+
+Query parameters:
+- `limit`: integer, default 100, minimum 1, maximum 500
+
+Response: array of:
+- `id`: integer
 - `vehicle_id`: integer
 - `soh_percent`: number or null
 - `rul_cycles`: integer or null
@@ -203,7 +230,12 @@ Response:
 - `model_version`: string or null
 - `predicted_at`: datetime
 
-If no prediction exists, return HTTP 404 or a documented empty result.
+The endpoint returns predictions ordered by `predicted_at` in descending order.
+
+If the vehicle does not exist, returns HTTP 404.
+
+If the vehicle exists but has no prediction records, returns an empty array.
+
 
 ## 8. Maintenance
 
@@ -346,25 +378,23 @@ Error example:
 }
 ```
 
-## 14. Implementation status
 
-Implemented and tested:
+## 14. Implementation Status
+
+### Implemented and tested
 
 - GET /health
 - GET /api/v1/fleet/vehicles
 - GET /api/v1/fleet/vehicles/{vehicle_id}
 - GET /api/v1/fleet/vehicles/{vehicle_id}/telemetry
 - GET /api/v1/fleet/vehicles/{vehicle_id}/charging-sessions
+- GET /api/v1/fleet/vehicles/{vehicle_id}/battery-predictions
 - GET /api/v1/dashboard/summary
 
-Planned endpoints:
+### Pending integration or verification
 
-- Battery
 - Maintenance
 - Procurement
 - Supply Chain
 - Net-Zero
 - AI Assistant
-
-An endpoint is not considered implemented until it exists in FastAPI,
-has request/response schemas, and has been tested.

@@ -1,12 +1,15 @@
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.models.BatteryPrediction import BatteryPrediction
 from app.models.ChargingSession import ChargingSession
 from app.models.TelemetryRecord import TelemetryRecord
 from app.models.Vehicle import Vehicle
 from app.schemas.fleet import (
+    BatteryPredictionResponse,
     ChargingSessionResponse,
     TelemetryResponse,
     VehicleResponse,
@@ -39,7 +42,6 @@ def get_vehicles(
         )
 
     query = query.order_by(Vehicle.id)
-
     vehicles = db.scalars(query).all()
 
     return vehicles
@@ -87,9 +89,7 @@ def get_vehicle_telemetry(
         .limit(limit)
     )
 
-    records = db.scalars(query).all()
-
-    return records
+    return db.scalars(query).all()
 
 
 # Get charging sessions for a vehicle
@@ -117,6 +117,32 @@ def get_vehicle_charging_sessions(
         .limit(limit)
     )
 
-    sessions = db.scalars(query).all()
+    return db.scalars(query).all()
 
-    return sessions
+
+# Get battery predictions for a vehicle
+@router.get(
+    "/vehicles/{vehicle_id}/battery-predictions",
+    response_model=list[BatteryPredictionResponse],
+)
+def get_vehicle_battery_predictions(
+    vehicle_id: int,
+    limit: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    vehicle = db.get(Vehicle, vehicle_id)
+
+    if vehicle is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Vehicle not found",
+        )
+
+    query = (
+        select(BatteryPrediction)
+        .where(BatteryPrediction.vehicle_id == vehicle_id)
+        .order_by(BatteryPrediction.predicted_at.desc())
+        .limit(limit)
+    )
+
+    return db.scalars(query).all()

@@ -1,3 +1,4 @@
+
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
@@ -34,5 +35,17 @@ class ChargingSessionResponse(BaseModel):
     ended_at: datetime | None
     energy_charged_kwh: float
     duration_minutes: float
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BatteryPredictionResponse(BaseModel):
+    id: int
+    vehicle_id: int
+    soh_percent: float | None
+    rul_cycles: int | None
+    prediction_status: str
+    model_version: str | None
+    predicted_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
