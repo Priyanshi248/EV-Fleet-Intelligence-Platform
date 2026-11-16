@@ -41,14 +41,87 @@ Success example:
 
 ## 3. Dashboard
 
+
 ### GET /api/v1/dashboard/summary
 
-Returns summary metrics computed from the seeded database.
+**Description:** Returns aggregated fleet, charging, battery, maintenance, and sustainability metrics based on stored database records.
 
-Response:
-- `total_vehicles`: integer
-- `vehicle_status_counts`: object mapping vehicle status to count
-- `total_energy_charged_kwh`: number or null
+**Authentication:** Not required (current implementation).
+
+**Request parameters:** None.
+
+**Success Response: 200 OK**
+
+```json
+{
+  "total_vehicles": 3,
+  "vehicle_status_counts": {
+    "active": 1,
+    "charging": 1,
+    "maintenance": 1
+  },
+  "total_energy_charged_kwh": 75,
+  "battery": {
+    "status": "available",
+    "total_predictions": 3,
+    "vehicles_with_predictions": 3,
+    "average_soh_percent": 88,
+    "average_rul_cycles": 700
+  },
+  "maintenance": {
+    "status": "available",
+    "total_alerts": 2,
+    "severity_counts": {
+      "medium": 1,
+      "high": 1
+    },
+    "status_counts": {
+      "open": 2
+    }
+  },
+  "sustainability": {
+    "status": "available",
+    "total_scenarios": 3,
+    "average_baseline_emissions_kg_co2e": 100000,
+    "average_projected_emissions_kg_co2e": 70000,
+    "average_reduction_percent": 30
+  }
+}
+```
+
+**Response field definitions:**
+
+| Field | Type | Description |
+|---|---|---|
+| total_vehicles | integer | Total number of registered vehicles |
+| vehicle_status_counts | object | Number of vehicles grouped by status |
+| total_energy_charged_kwh | number or null | Total energy charged, in kWh |
+| battery.status | string | Battery data availability |
+| battery.total_predictions | integer or null | Total battery prediction records |
+| battery.vehicles_with_predictions | integer or null | Distinct vehicles with predictions |
+| battery.average_soh_percent | number or null | Average state of health (%) |
+| battery.average_rul_cycles | number or null | Average remaining useful life (cycles) |
+| maintenance.status | string | Maintenance data availability |
+| maintenance.total_alerts | integer or null | Total maintenance alerts |
+| maintenance.severity_counts | object | Alert counts grouped by severity |
+| maintenance.status_counts | object | Alert counts grouped by status |
+| sustainability.status | string | Sustainability data availability |
+| sustainability.total_scenarios | integer or null | Number of net-zero scenarios |
+| sustainability.average_baseline_emissions_kg_co2e | number or null | Average baseline emissions (kg CO2e) |
+| sustainability.average_projected_emissions_kg_co2e | number or null | Average projected emissions (kg CO2e) |
+| sustainability.average_reduction_percent | number or null | Average scenario reduction percentage |
+
+**Availability status values:**
+- `available`: Records exist and metrics are calculated.
+- `no_data`: The table exists but contains no records. Metrics are null where applicable, and count breakdowns are empty objects.
+- `unavailable`: The module or data source is not integrated.
+
+**Notes:**
+- Dashboard metrics are calculated from PostgreSQL records.
+- Battery averages use non-null prediction values.
+- Vehicles with predictions are counted distinctly.
+- Sustainability metrics are averages across scenarios, not total fleet emissions.
+- Energy charged is measured in kWh.
 
 If no charging data is available, `total_energy_charged_kwh` is `null`.
 
