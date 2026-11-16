@@ -54,6 +54,7 @@ class EVCatalog(Base):
         String(30), nullable=False, default="simulated"
     )
 
-    recommendations: Mapped[list["ProcurementRecommendation"]] = (
-        relationship(back_populates="ev")
+    recommendations: Mapped[list["ProcurementRecommendation"]] = relationship(
+        "ProcurementRecommendation",
+        back_populates="ev",
     )

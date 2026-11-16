@@ -33,5 +33,6 @@ class ProcurementRecommendation(Base):
     )
 
     ev: Mapped["EVCatalog"] = relationship(
-        back_populates="recommendations"
+        "EVCatalog",
+        back_populates="recommendations",
     )
