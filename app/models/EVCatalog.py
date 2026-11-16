@@ -1,6 +1,6 @@
 
 from sqlalchemy import CheckConstraint, Float, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
 
@@ -34,6 +34,7 @@ class EVCatalog(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     make: Mapped[str] = mapped_column(String(100), nullable=False)
     model: Mapped[str] = mapped_column(String(100), nullable=False)
+
     purchase_price_inr: Mapped[float] = mapped_column(
         Float, nullable=False
     )
@@ -41,12 +42,18 @@ class EVCatalog(Base):
         Float, nullable=False
     )
     payload_kg: Mapped[float] = mapped_column(Float, nullable=False)
+
     energy_consumption_kwh_per_km: Mapped[float] = mapped_column(
         Float, nullable=False
     )
     charging_time_hours: Mapped[float] = mapped_column(
         Float, nullable=False
     )
+
     data_source: Mapped[str] = mapped_column(
         String(30), nullable=False, default="simulated"
+    )
+
+    recommendations: Mapped[list["ProcurementRecommendation"]] = (
+        relationship(back_populates="ev")
     )
