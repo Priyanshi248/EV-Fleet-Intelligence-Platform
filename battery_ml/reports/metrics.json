@@ -1,0 +1,111 @@
+{
+  "split": {
+    "train_rows": 29701,
+    "test_rows": 7199,
+    "train_vehicles": 120,
+    "test_vehicles": 30,
+    "split_by": "vehicle"
+  },
+  "soh": {
+    "chosen": "random_forest",
+    "cv_rmse": {
+      "ridge": 2.68,
+      "random_forest": 2.536,
+      "hist_gradient_boosting": 2.564
+    },
+    "test": {
+      "r2": 0.9345,
+      "rmse": 2.043,
+      "mae": 1.553
+    },
+    "baseline_cycle_only_linear": {
+      "r2": 0.576,
+      "rmse": 5.198,
+      "mae": 4.078
+    }
+  },
+  "rul": {
+    "chosen": "random_forest",
+    "cv_rmse": {
+      "ridge": 506.72,
+      "random_forest": 345.896,
+      "hist_gradient_boosting": 346.265
+    },
+    "test": {
+      "r2": 0.8462,
+      "rmse": 404.022,
+      "mae": 245.93
+    },
+    "test_late_life_rul_le_500": {
+      "r2": 0.6482,
+      "rmse": 85.783,
+      "mae": 56.46
+    },
+    "baseline_linear_extrapolation": {
+      "r2": -1.3157,
+      "rmse": 1567.571,
+      "mae": 1096.438
+    },
+    "interval_80pct_coverage": 0.714,
+    "note": "RUL measured in cycles; years = cycles / (cycles_per_day * 365)"
+  },
+  "risk": {
+    "horizon_cycles": 100,
+    "positive_rate_test": 0.0472,
+    "thresholds": {
+      "low": 0.223,
+      "medium": 0.301,
+      "high": 0.405
+    },
+    "test": {
+      "accuracy": 0.9415,
+      "precision": 0.4195,
+      "recall": 0.6206,
+      "f1": 0.5006,
+      "roc_auc": 0.8971,
+      "pr_auc": 0.4902,
+      "brier": 0.0314,
+      "confusion_matrix_[[tn,fp],[fn,tp]]": [
+        [
+          6567,
+          292
+        ],
+        [
+          129,
+          211
+        ]
+      ]
+    },
+    "baseline_threshold_rule": {
+      "precision": 0.1801,
+      "recall": 0.8471,
+      "f1": 0.2971
+    },
+    "fault_type_accuracy_among_true_faults": 0.8353,
+    "test_by_risk_level": {
+      "High": {
+        "rows": 240,
+        "observed_fault_rate": 0.621
+      },
+      "Medium": {
+        "rows": 122,
+        "observed_fault_rate": 0.287
+      },
+      "Low": {
+        "rows": 142,
+        "observed_fault_rate": 0.19
+      },
+      "None": {
+        "rows": 6695,
+        "observed_fault_rate": 0.019
+      }
+    },
+    "classes": [
+      "aging",
+      "comm",
+      "imbalance",
+      "none",
+      "thermal"
+    ]
+  }
+}

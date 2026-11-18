@@ -1,0 +1,25 @@
+{
+  "rows_in": 37011,
+  "duplicates_removed": 111,
+  "out_of_range_masked": {
+    "avg_temp_c": 135,
+    "max_temp_c": 142,
+    "voltage_v": 149,
+    "current_a": 153,
+    "resistance_mohm": 145,
+    "cell_delta_mv": 0,
+    "fast_charge_ratio": 0,
+    "avg_dod": 0,
+    "soh_pct": 0
+  },
+  "missing_before_imputation": {
+    "avg_temp_c": 906,
+    "max_temp_c": 804,
+    "voltage_v": 846,
+    "current_a": 865,
+    "resistance_mohm": 890
+  },
+  "rows_dropped_missing_labels": 0,
+  "rows_out": 36900,
+  "vehicles": 150
+}

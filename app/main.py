@@ -7,6 +7,11 @@ from fastapi.responses import JSONResponse
 from app.api.dashboard import router as dashboard_router
 from app.api.fleet import router as fleet_router
 from app.api.maintenance import router as maintenance_router
+from battery_ml.router import router as battery_router
+from app.api.supply_chain import router as supply_chain_router
+from app.api.procurement import router as procurement_router
+from app.api.net_zero import router as net_zero_router
+from app.api.assistant import router as assistant_router
 
 
 app = FastAPI(
@@ -41,6 +46,11 @@ app.add_middleware(
 app.include_router(fleet_router)
 app.include_router(dashboard_router)
 app.include_router(maintenance_router)
+app.include_router(battery_router)
+app.include_router(procurement_router)
+app.include_router(supply_chain_router)
+app.include_router(net_zero_router)
+app.include_router(assistant_router)
 
 
 # ---------------------------------------------------------

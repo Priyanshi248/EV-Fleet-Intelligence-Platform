@@ -3,7 +3,7 @@ import {
   getVehicles,
   getVehicleTelemetry,
   getChargingSessions,
-  getBatteryPredictions,
+  getBatteryHealth,
 } from '@/lib/api';
 
 import { useState, useEffect, Suspense } from 'react';
@@ -75,8 +75,9 @@ function FleetMonitoringContent() {
   const [fleetError, setFleetError] = useState(null);
   const [selectedChargingSessions, setSelectedChargingSessions] = useState([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
-  const [selectedBatteryPredictions, setSelectedBatteryPredictions] = useState([]);
-  const [loadingBatteryPredictions, setLoadingBatteryPredictions] = useState(false);
+  const [selectedBatteryHealth, setSelectedBatteryHealth] = useState(null);
+  const [loadingBatteryHealth, setLoadingBatteryHealth] = useState(false);
+  const [batteryHealthError, setBatteryHealthError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [depotFilter, setDepotFilter] = useState('All');
@@ -160,44 +161,52 @@ function FleetMonitoringContent() {
     };
   }, [selectedVehicle?.databaseId]);
 
+  // Fetch trained ML battery-health analysis for the selected vehicle.
+  // The ML API expects the fleet identifier (for example, EV-001),
+  // not the numeric PostgreSQL database ID.
   useEffect(() => {
-  let cancelled = false;
+    let cancelled = false;
 
-  async function loadBatteryPredictions() {
-    if (!selectedVehicle?.databaseId) {
-      setSelectedBatteryPredictions([]);
-      return;
+    async function loadBatteryHealth() {
+      if (!selectedVehicle?.id) {
+        setSelectedBatteryHealth(null);
+        setBatteryHealthError(null);
+        setLoadingBatteryHealth(false);
+        return;
+      }
+
+      try {
+        setLoadingBatteryHealth(true);
+        setBatteryHealthError(null);
+        setSelectedBatteryHealth(null);
+
+        const health = await getBatteryHealth(selectedVehicle.id);
+
+        if (!cancelled) {
+          setSelectedBatteryHealth(health);
+        }
+      } catch (error) {
+        console.error('Unable to load ML battery health:', error);
+
+        if (!cancelled) {
+          setSelectedBatteryHealth(null);
+          setBatteryHealthError(
+            error.message || 'Unable to load battery health predictions.'
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingBatteryHealth(false);
+        }
+      }
     }
 
-    try {
-      setLoadingBatteryPredictions(true);
+    loadBatteryHealth();
 
-      const predictions = await getBatteryPredictions(
-        selectedVehicle.databaseId
-      );
-
-      if (!cancelled) {
-        setSelectedBatteryPredictions(predictions);
-      }
-    } catch (error) {
-      console.error('Unable to load battery predictions:', error);
-
-      if (!cancelled) {
-        setSelectedBatteryPredictions([]);
-      }
-    } finally {
-      if (!cancelled) {
-        setLoadingBatteryPredictions(false);
-      }
-    }
-  }
-
-  loadBatteryPredictions();
-
-  return () => {
-    cancelled = true;
-  };
-}, [selectedVehicle?.databaseId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedVehicle?.id]);
 
   // New vehicle form state
   const [newVehicle, setNewVehicle] = useState({
@@ -577,29 +586,45 @@ function FleetMonitoringContent() {
               </div>
             )}
 
-            {/* Tab 2: Battery */}
+            {/* Tab 2: Battery — trained ML health analysis */}
             {activeTab === 'Battery' && (
-              <div className="space-y-3 pt-1 text-xs">
-                {loadingBatteryPredictions && (
-                  <p className="text-slate-500">
-                    Loading battery predictions...
-                  </p>
+              <div className="space-y-4 pt-1 text-xs">
+                {loadingBatteryHealth && (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-blue-700">
+                    Loading trained battery-health predictions...
+                  </div>
+                )}
+
+                {batteryHealthError && (
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-3 text-rose-700">
+                    <p className="font-semibold">Battery ML data unavailable</p>
+                    <p className="mt-1">{batteryHealthError}</p>
+                    <p className="mt-1 text-[11px]">
+                      The ML demo dataset currently supports the vehicle IDs EV-001 to EV-012.
+                    </p>
+                  </div>
+                )}
+
+                {!loadingBatteryHealth && !batteryHealthError && !selectedBatteryHealth && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-slate-500">
+                    No battery-health analysis is available for this vehicle.
+                  </div>
                 )}
 
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-100">
                     <span className="text-[10px] text-emerald-700 font-medium uppercase">
-                      State of Health (SOH)
+                      Predicted State of Health
                     </span>
                     <p className="text-lg font-bold text-emerald-900 mt-0.5">
-                      {loadingBatteryPredictions
+                      {loadingBatteryHealth
                         ? 'Loading...'
-                        : selectedBatteryPredictions[0]?.soh_percent != null
-                          ? `${selectedBatteryPredictions[0].soh_percent}%`
+                        : selectedBatteryHealth?.soh_pct != null
+                          ? `${selectedBatteryHealth.soh_pct}%`
                           : 'N/A'}
                     </p>
                     <span className="text-[10px] text-emerald-600">
-                      Expected: &gt;80%
+                      ML model prediction
                     </span>
                   </div>
 
@@ -608,26 +633,31 @@ function FleetMonitoringContent() {
                       Remaining Useful Life
                     </span>
                     <p className="text-lg font-bold text-blue-900 mt-0.5">
-                      {loadingBatteryPredictions
+                      {loadingBatteryHealth
                         ? 'Loading...'
-                        : selectedBatteryPredictions[0]?.rul_cycles != null
-                          ? `${selectedBatteryPredictions[0].rul_cycles} cycles`
+                        : selectedBatteryHealth?.rul?.rul_cycles != null
+                          ? `${selectedBatteryHealth.rul.rul_cycles.toLocaleString()} cycles`
                           : 'N/A'}
                     </p>
                     <span className="text-[10px] text-blue-600">
-                      Predicted remaining charge cycles
+                      Predicted remaining cycles
                     </span>
                   </div>
 
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                     <span className="text-[10px] text-slate-500 font-medium uppercase">
-                      Pack Temp
+                      Pack Temperature
                     </span>
                     <p className="text-base font-bold text-slate-800 mt-0.5">
-                      {selectedVehicle.temperature == null
-                        ? 'N/A'
-                        : `${selectedVehicle.temperature}°C`}
+                      {selectedBatteryHealth?.can_bus?.temperature_c != null
+                        ? `${selectedBatteryHealth.can_bus.temperature_c}°C`
+                        : selectedVehicle.temperature != null
+                          ? `${selectedVehicle.temperature}°C`
+                          : 'N/A'}
                     </p>
+                    <span className="text-[10px] text-slate-400">
+                      From ML demo-fleet record / latest telemetry fallback
+                    </span>
                   </div>
 
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
@@ -635,40 +665,227 @@ function FleetMonitoringContent() {
                       Charge Cycles
                     </span>
                     <p className="text-base font-bold text-slate-800 mt-0.5">
-                      N/A
+                      {selectedBatteryHealth?.can_bus?.cycles != null
+                        ? selectedBatteryHealth.can_bus.cycles.toLocaleString()
+                        : 'N/A'}
                     </p>
                   </div>
                 </div>
 
-                <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-xs space-y-2">
-                  <p>
-                    <strong>Prediction Status:</strong>{' '}
-                    {loadingBatteryPredictions
-                      ? 'Loading...'
-                      : selectedBatteryPredictions[0]?.prediction_status ?? 'Not available'}
-                  </p>
+                {selectedBatteryHealth && (
+                  <>
+                    <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                      <h3 className="font-semibold text-slate-800">
+                        Battery health details
+                      </h3>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">SOH in demo dataset</span>
+                        <span className="font-semibold text-slate-800">
+                          {selectedBatteryHealth.soh_measured_pct != null
+                            ? `${selectedBatteryHealth.soh_measured_pct}%`
+                            : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">SOH used for RUL</span>
+                        <span className="font-semibold text-slate-800">
+                          {selectedBatteryHealth.rul?.soh_pct_used != null
+                            ? `${selectedBatteryHealth.rul.soh_pct_used}%`
+                            : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">SOH source</span>
+                        <span className="font-semibold capitalize text-slate-800">
+                          {selectedBatteryHealth.rul?.soh_source || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">RUL estimate</span>
+                        <span className="font-semibold text-slate-800">
+                          {selectedBatteryHealth.rul?.rul_years != null
+                            ? `${selectedBatteryHealth.rul.rul_years} years`
+                            : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">RUL prediction interval</span>
+                        <span className="font-semibold text-slate-800">
+                          {selectedBatteryHealth.rul?.rul_cycles_low != null &&
+                          selectedBatteryHealth.rul?.rul_cycles_high != null
+                            ? `${selectedBatteryHealth.rul.rul_cycles_low.toLocaleString()}–${selectedBatteryHealth.rul.rul_cycles_high.toLocaleString()} cycles`
+                            : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">End-of-life SOH threshold</span>
+                        <span className="font-semibold text-slate-800">
+                          {selectedBatteryHealth.rul?.eol_threshold_soh_pct != null
+                            ? `${selectedBatteryHealth.rul.eol_threshold_soh_pct}%`
+                            : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
 
-                  <p>
-                    <strong>Model Version:</strong>{' '}
-                    {selectedBatteryPredictions[0]?.model_version ?? 'Not available'}
-                  </p>
+                    <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                      <h3 className="font-semibold text-slate-800">
+                        Degradation analysis
+                      </h3>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-md bg-slate-50 p-2">
+                          <span className="text-[10px] text-slate-500">
+                            Per 100 cycles
+                          </span>
+                          <p className="mt-1 font-bold text-slate-900">
+                            {selectedBatteryHealth.degradation?.degradation_rate_pct_per_100_cycles != null
+                              ? `${selectedBatteryHealth.degradation.degradation_rate_pct_per_100_cycles}%`
+                              : 'N/A'}
+                          </p>
+                        </div>
+                        <div className="rounded-md bg-slate-50 p-2">
+                          <span className="text-[10px] text-slate-500">
+                            Per month
+                          </span>
+                          <p className="mt-1 font-bold text-slate-900">
+                            {selectedBatteryHealth.degradation?.degradation_rate_pct_per_month != null
+                              ? `${selectedBatteryHealth.degradation.degradation_rate_pct_per_month}%`
+                              : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">Fleet benchmark SOH</span>
+                        <span className="font-semibold text-slate-800">
+                          {selectedBatteryHealth.degradation?.benchmark_soh_pct != null
+                            ? `${selectedBatteryHealth.degradation.benchmark_soh_pct}%`
+                            : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">Comparison with benchmark</span>
+                        <span className="font-semibold text-slate-800 text-right">
+                          {selectedBatteryHealth.degradation?.vs_benchmark || 'N/A'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Rate basis: {selectedBatteryHealth.degradation?.rate_basis || 'Not available'}
+                      </p>
+                      <div>
+                        <p className="font-semibold text-slate-700 mb-1">Detected stress drivers</p>
+                        {selectedBatteryHealth.degradation?.stress_drivers?.length ? (
+                          <ul className="list-disc pl-4 space-y-1 text-slate-600">
+                            {selectedBatteryHealth.degradation.stress_drivers.map((driver, index) => (
+                              <li key={`${index}-${driver}`}>{driver}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-slate-500">No stress drivers identified by this analysis.</p>
+                        )}
+                      </div>
+                    </div>
 
-                  <p>
-                    <strong>Predicted At:</strong>{' '}
-                    {selectedBatteryPredictions[0]?.predicted_at
-                      ? new Date(
-                          selectedBatteryPredictions[0].predicted_at
-                        ).toLocaleString()
-                      : 'Not available'}
-                  </p>
+                    <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                      <h3 className="font-semibold text-slate-800">
+                        Predictive maintenance risk
+                      </h3>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-slate-500">Risk level</span>
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${
+                          selectedBatteryHealth.risk?.risk_level === 'High'
+                            ? 'bg-rose-100 text-rose-700'
+                            : selectedBatteryHealth.risk?.risk_level === 'Medium'
+                              ? 'bg-amber-100 text-amber-700'
+                              : selectedBatteryHealth.risk?.risk_level === 'Low'
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {selectedBatteryHealth.risk?.risk_level || 'Not available'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">Failure probability</span>
+                        <span className="font-semibold text-slate-800">
+                          {selectedBatteryHealth.risk?.failure_probability_pct != null
+                            ? `${selectedBatteryHealth.risk.failure_probability_pct}%`
+                            : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">Predicted issue</span>
+                        <span className="font-semibold text-slate-800 text-right">
+                          {selectedBatteryHealth.risk?.predicted_issue || 'None identified'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Risk estimate covers the next 100 charge cycles. This is a model prediction, not a confirmed fault.
+                      </p>
+                    </div>
 
-                  <p>
-                    <strong>Cell Balancing Status:</strong> Not available from the current API.
-                  </p>
-                </div>
+                    {selectedBatteryHealth.trend?.length > 0 && (
+                      <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                        <h3 className="font-semibold text-slate-800">
+                          Historical SOH trend
+                        </h3>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-[11px]">
+                            <thead className="text-slate-500 border-b border-slate-100">
+                              <tr>
+                                <th className="py-1.5 pr-2">Month</th>
+                                <th className="py-1.5 pr-2">SOH</th>
+                                <th className="py-1.5 text-right">Benchmark</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {selectedBatteryHealth.trend.map((point, index) => (
+                                <tr key={`${point.month}-${index}`} className="border-b border-slate-50 last:border-0">
+                                  <td className="py-1.5 pr-2 text-slate-600">{point.month}</td>
+                                  <td className="py-1.5 pr-2 font-semibold text-slate-800">{point.soh}%</td>
+                                  <td className="py-1.5 text-right text-slate-600">{point.benchmark}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedBatteryHealth.analysis?.some((point) => point.actual == null) && (
+                      <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 space-y-2">
+                        <h3 className="font-semibold text-blue-900">
+                          Future SOH forecast
+                        </h3>
+                        <div className="grid grid-cols-2 gap-2">
+                          {selectedBatteryHealth.analysis
+                            .filter((point) => point.actual == null)
+                            .map((point) => (
+                              <div key={point.month} className="rounded-md bg-white/80 p-2">
+                                <p className="text-[10px] text-slate-500">{point.month}</p>
+                                <p className="mt-1 font-bold text-blue-900">{point.predicted}%</p>
+                              </div>
+                            ))}
+                        </div>
+                        <p className="text-[10px] text-blue-700">
+                          Forecast values are model estimates; they are not measured future readings.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="rounded-lg bg-slate-50 p-3 text-[11px] text-slate-500 space-y-1">
+                      <p>
+                        <strong>Vehicle:</strong> {selectedBatteryHealth.vehicle_id || selectedVehicle.id}
+                        {selectedBatteryHealth.model ? ` · ${selectedBatteryHealth.model}` : ''}
+                      </p>
+                      <p>
+                        <strong>Data source:</strong> Supplied demo-fleet dataset and trained ML models.
+                      </p>
+                      <p>
+                        <strong>Prediction status:</strong> ML analysis returned successfully.
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             )}
-
 
             {/* Tab 3: Charging */}
             {activeTab === 'Charging' && (

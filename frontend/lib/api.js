@@ -82,3 +82,55 @@ export const updateMaintenanceAlertStatus = (alertId, status) =>
     method: 'PATCH',
     body: JSON.stringify({ status }),
   });
+
+// Battery ML health predictions
+export const getBatteryHealth = (vehicleId) =>
+  apiRequest(`/api/v1/battery/${encodeURIComponent(vehicleId)}/health`);
+
+// Battery ML model evaluation metrics
+export const getMLMetrics = () =>
+  apiRequest("/api/v1/ml/metrics");
+
+// Procurement APIs
+export const getProcurementCatalog = () =>
+  apiRequest("/api/v1/procurement/catalog");
+
+export const generateProcurementRecommendations = (requirements) =>
+  apiRequest("/api/v1/procurement/recommendations", {
+    method: "POST",
+    body: JSON.stringify(requirements),
+  });
+
+export const getProcurementRecommendationHistory = (limit = 20) =>
+  apiRequest(`/api/v1/procurement/recommendations/history?limit=${limit}`);
+
+// Supply Chain APIs
+export const getSupplyChainSummary = () =>
+  apiRequest("/api/v1/supply-chain/summary");
+
+export const getSupplyChainSuppliers = () =>
+  apiRequest("/api/v1/supply-chain/suppliers");
+
+export const getBatteryMaterials = () =>
+  apiRequest("/api/v1/supply-chain/materials");
+
+export const getSupplyChainAssessments = () =>
+  apiRequest("/api/v1/supply-chain/assessments");
+
+export const getNetZeroSummary = () =>
+  apiRequest("/api/v1/net-zero/summary");
+
+export const getNetZeroScenarios = () =>
+  apiRequest("/api/v1/net-zero/scenarios");
+
+export const createNetZeroScenario = (payload) =>
+  apiRequest("/api/v1/net-zero/scenarios", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  export const sendAssistantMessage = (message) =>
+  apiRequest("/api/v1/assistant/chat", {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
