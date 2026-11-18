@@ -61,8 +61,24 @@ export const getBatteryPredictions = (id, limit = 100) =>
     `/api/v1/fleet/vehicles/${id}/battery-predictions?limit=${limit}`
   );
 
+
+export const getMaintenanceAlerts = (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+
+  return apiRequest(
+    `/api/v1/maintenance/alerts${query ? `?${query}` : ''}`
+  );
+};
+
+
 export const createVehicle = (vehicleData) =>
   apiRequest("/api/v1/fleet/vehicles", {
     method: "POST",
     body: JSON.stringify(vehicleData),
+  });
+
+export const updateMaintenanceAlertStatus = (alertId, status) =>
+  apiRequest(`/api/v1/maintenance/alerts/${alertId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
   });
