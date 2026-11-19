@@ -1,3 +1,4 @@
+import os
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -25,14 +26,23 @@ app = FastAPI(
 # 1. CORS Configuration
 # ---------------------------------------------------------
 
+DEFAULT_CORS_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+configured_origins = os.getenv("CORS_ORIGINS", "")
+allowed_origins = (
+    [origin.strip().rstrip("/") for origin in configured_origins.split(",") if origin.strip()]
+    if configured_origins.strip()
+    else DEFAULT_CORS_ORIGINS
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
