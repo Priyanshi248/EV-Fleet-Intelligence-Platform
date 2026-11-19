@@ -1,0 +1,6 @@
+supplier_id,supplier_name,headquarters_country,material_id,annual_capacity_gwh,geopolitical_risk,price_volatility_risk,supplier_concentration_hhi,quality_defect_ppm,esg_sustainability_score
+SUP-01,CATL,China,MAT-LI,180.0,68.0,45.0,78.0,12.0,72.0
+SUP-02,LG Energy Solution,South Korea,MAT-NI,95.0,30.0,42.0,55.0,18.0,85.0
+SUP-03,Panasonic Energy,Japan,MAT-CO,50.0,25.0,52.0,60.0,9.0,88.0
+SUP-04,Albemarle,USA,MAT-LI,40.0,15.0,60.0,45.0,14.0,80.0
+SUP-05,Glencore,Switzerland/DRC,MAT-CO,25.0,82.0,85.0,88.0,35.0,52.0
